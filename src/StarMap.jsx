@@ -239,19 +239,37 @@ export default function StarMap() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const animRef = useRef(null);
   const timeRef = useRef(0);
+  const touchStartedOnCanvas = useRef(false);
+  const ignoreTouchUntil = useRef(0);
  
   // sync canvas resolution to viewport
   useEffect(() => {
+    if (!user) return;
     const resize = () => {
       const c = canvasRef.current;
-      if (c) { c.width = window.innerWidth; c.height = window.innerHeight; }
+      if (!c) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      c.width = Math.round(w * dpr);
+      c.height = Math.round(h * dpr);
+      c.style.width = `${w}px`;
+      c.style.height = `${h}px`;
     };
     resize();
     window.addEventListener("resize", resize);
-    return () => window.removeEventListener("resize", resize);
-  }, []);
+    window.addEventListener("orientationchange", resize);
+    return () => {
+      window.removeEventListener("resize", resize);
+      window.removeEventListener("orientationchange", resize);
+    };
+  }, [user]);
  
   const drawCanvas = useCallback((ctx, w, h, t, hovered) => {
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    w = w / dpr;
+    h = h / dpr;
     ctx.clearRect(0, 0, w, h);
  
     // deep space background
@@ -360,8 +378,17 @@ export default function StarMap() {
   }, [hoveredStar]);
  
   // touch (mobile)
+  const onTouchStart = useCallback(() => {
+    touchStartedOnCanvas.current = true;
+  }, []);
+
   const onTouchEnd = useCallback((e) => {
     e.preventDefault();
+    if (!touchStartedOnCanvas.current || Date.now() < ignoreTouchUntil.current) {
+      touchStartedOnCanvas.current = false;
+      return;
+    }
+    touchStartedOnCanvas.current = false;
     const touch = e.changedTouches[0];
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
@@ -372,7 +399,15 @@ export default function StarMap() {
     else setSelectedStar(null);
   }, [findNearest, trackDetected]);
  
-  if (!user) return <UserRegistration onRegister={setUser} />;
+  const handleRegister = useCallback((name) => {
+    ignoreTouchUntil.current = Date.now() + 800;
+    touchStartedOnCanvas.current = false;
+    setSelectedStar(null);
+    setHoveredStar(null);
+    setUser(name);
+  }, []);
+
+  if (!user) return <UserRegistration onRegister={handleRegister} />;
  
   return (
     <div style={{ width: "100%", height: "100vh", background: "#020508", position: "relative", overflow: "hidden", touchAction: "none" }}>
@@ -388,6 +423,7 @@ export default function StarMap() {
         style={{ width: "100%", height: "100%", cursor: hoveredStar ? "pointer" : "crosshair" }}
         onMouseMove={!isMobile ? onMouseMove : undefined}
         onClick={!isMobile ? onClick : undefined}
+        onTouchStart={isMobile ? onTouchStart : undefined}
         onTouchEnd={isMobile ? onTouchEnd : undefined}
       />
  
