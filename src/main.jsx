@@ -4,7 +4,7 @@ import './index.css'
  import StarMap from './StarMap'
 
 createRoot(document.getElementById('root')).render(
-  <StrictMode base="/repo-name/">
+  <StrictMode >
     <StarMap />
   </StrictMode>,
 )
